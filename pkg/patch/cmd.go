@@ -22,6 +22,7 @@ type patchArgs struct {
 	workingFolder string
 	timeout       time.Duration
 	scanner       string
+	manager       string
 	ignoreError   bool
 	format        string
 	output        string
@@ -48,6 +49,7 @@ func NewPatchCmd() *cobra.Command {
 				ua.patchedTag,
 				ua.workingFolder,
 				ua.scanner,
+				ua.manager,
 				ua.format,
 				ua.output,
 				ua.ignoreError,
@@ -65,6 +67,7 @@ func NewPatchCmd() *cobra.Command {
 	flags.StringVarP(&ua.bkOpts.KeyPath, "key", "", "", "Absolute path to buildkit client key")
 	flags.DurationVar(&ua.timeout, "timeout", 5*time.Minute, "Timeout for the operation, defaults to '5m'")
 	flags.StringVarP(&ua.scanner, "scanner", "s", "trivy", "Scanner used to generate the report, defaults to 'trivy'")
+	flags.StringVarP(&ua.manager, "manager", "m", "docker", "Container management tool used to load images, defaults to 'docker'")
 	flags.BoolVar(&ua.ignoreError, "ignore-errors", false, "Ignore errors and continue patching")
 	flags.StringVarP(&ua.format, "format", "f", "openvex", "Output format, defaults to 'openvex'")
 	flags.StringVarP(&ua.output, "output", "o", "", "Output file path")

@@ -43,13 +43,13 @@ const (
 )
 
 // Patch command applies package updates to an OCI image given a vulnerability report.
-func Patch(ctx context.Context, timeout time.Duration, image, reportFile, patchedTag, workingFolder, scanner, format, output string, ignoreError bool, bkOpts buildkit.Opts) error {
+func Patch(ctx context.Context, timeout time.Duration, image, reportFile, patchedTag, workingFolder, scanner, manager, format, output string, ignoreError bool, bkOpts buildkit.Opts) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	ch := make(chan error)
 	go func() {
-		ch <- patchWithContext(timeoutCtx, ch, image, reportFile, patchedTag, workingFolder, scanner, format, output, ignoreError, bkOpts)
+		ch <- patchWithContext(timeoutCtx, ch, image, reportFile, patchedTag, workingFolder, scanner, manager, format, output, ignoreError, bkOpts)
 	}()
 
 	select {
@@ -74,7 +74,9 @@ func removeIfNotDebug(workingFolder string) {
 	}
 }
 
-func patchWithContext(ctx context.Context, ch chan error, image, reportFile, patchedTag, workingFolder, scanner, format, output string, ignoreError bool, bkOpts buildkit.Opts) error {
+func patchWithContext(ctx context.Context, ch chan error, image, reportFile, patchedTag, workingFolder, scanner, containerManager, format, output string,
+	ignoreError bool, bkOpts buildkit.Opts,
+) error {
 	imageName, err := reference.ParseNormalizedNamed(image)
 	if err != nil {
 		return err
@@ -291,13 +293,18 @@ func patchWithContext(ctx context.Context, ch chan error, image, reportFile, pat
 		return err
 	})
 
-	eg.Go(func() error {
-		if err := dockerLoad(ctx, pipeR); err != nil {
-			return err
-		}
-		return pipeR.Close()
-	})
-
+	switch containerManager {
+	case "docker", "podman":
+		eg.Go(func() error {
+			if err := containerManagerLoad(ctx, containerManager, pipeR); err != nil {
+				return err
+			}
+			return pipeR.Close()
+		})
+	default:
+		err = errors.New("unsupported container management tool, supported tools are docker and podman")
+		return err
+	}
 	return eg.Wait()
 }
 
@@ -342,8 +349,8 @@ func getOSVersion(ctx context.Context, osreleaseBytes []byte) (string, error) {
 	return osData["VERSION_ID"], nil
 }
 
-func dockerLoad(ctx context.Context, pipeR io.Reader) error {
-	cmd := exec.CommandContext(ctx, "docker", "load")
+func containerManagerLoad(ctx context.Context, manager string, pipeR io.Reader) error {
+	cmd := exec.CommandContext(ctx, manager, "load")
 	cmd.Stdin = pipeR
 
 	stdout, err := cmd.StdoutPipe()
